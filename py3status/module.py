@@ -609,7 +609,36 @@ class Module:
                 pass
 
             # module configuration
+            fn = self._py3_wrapper.get_config_attribute
             mod_config = self.config["py3_config"].get(module, {})
+
+            # resources
+            if self.config.get("resources"):
+                resources = fn(self.module_full_name, "resources")
+                if not hasattr(resources, "none_setting"):
+                    exception = True
+                    if isinstance(resources, list):
+                        exception = False
+                        for resource in resources:
+                            if not isinstance(resource, tuple) or len(resource) != 3:
+                                exception = True
+                                break
+                    if exception:
+                        err = "Invalid `resources` attribute, "
+                        err += "should be a list of 3-tuples. "
+                        err += "Got `{}`.".format(resources)
+                        raise TypeError(err)
+
+                    from fnmatch import fnmatch
+
+                    module = self.module_nice_name
+                    for resource in resources:
+                        key, resource, value = resource
+                        for setting in self.config["resources"]:
+                            if fnmatch(setting, resource):
+                                value = self.config["resources"][setting]
+                                break
+                        self.config["py3_config"][module][key] = value
 
             # process any deprecated configuration settings
             try:
@@ -752,9 +781,6 @@ class Module:
                     self.add_udev_trigger(trigger_action, param[8:])
 
             # allow_urgent
-            # get the value form the config or use the module default if
-            # supplied.
-            fn = self._py3_wrapper.get_config_attribute
             param = fn(self.module_full_name, "allow_urgent")
             if hasattr(param, "none_setting"):
                 param = True
